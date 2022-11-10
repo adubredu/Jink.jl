@@ -1,6 +1,6 @@
 mutable struct SE3
     position::Union{Nothing, AbstractArray}
-    orientation::Union{Nothing, AbstractArray}
+    orientation::Union{Nothing, Matrix}
 
     function SE3()
         new(nothing, nothing)

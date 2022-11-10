@@ -7,43 +7,59 @@
 =#
 function initialize_solver(N; Δt=1e-3)
     model = JuMP.Model(OSQP.Optimizer) 
-    @variable(model, v[1:N])
+    @variable(model, q̇[1:N])
     solver = JinkSolver(model, Δt)
     return solver
 end
 
-function build_objective(tasks::::AbstractArray{Task})
+function build_objective(tasks::::AbstractArray{Task}, robot)
+    θ, θ̇ = get_configuration(robot)
+    for task in tasks  
+        p_current, R_current = task.task_map(θ)
+        current_pose = SE3(p_current, R_current) 
+        e = pose_error(task.target, current_pose)
 
-    return P, q 
+    end
+
+    return P, r
 end
 
-function build_equality_constraints(tasks::AbstractArray{Task})
+function build_equality_constraints(tasks::AbstractArray{Task}, robot)
 
     return A, b
 end
 
-function build_inequality_constraints(tasks::AbstractArray{Task})
+function build_inequality_constraints(tasks::AbstractArray{Task}, robot)
 
     return G, h 
 end
 
 function compute_velocity_limits(tasks::AbstractArray, Δt::Float64)
+
+    return q̇_min, q̇_max
+end
+
 function solve_ik(tasks::AbstractArray{Task}, 
-        solver::JinkSolver; Δt::Float64=1e-3)
+        solver::JinkSolver, robot; Δt::Float64=1e-3)
     model = solver.model
     Δt = solver.Δt
-    P, q = build_objective(tasks)
-    A, b = build_equality_constraints(tasks)
-    G, h = build_inequality_constraints(tasks)
-    v_min, v_max = compute_velocity_limits(tasks, Δt)
+    P, r = build_objective(tasks, robot)
+    A, b = build_equality_constraints(tasks, robot)
+    G, h = build_inequality_constraints(tasks, robot)
+    q̇_min, q̇_max = compute_velocity_limits(tasks, Δt)
 
-    @objective(model, Min, 0.5*v'*P*v + q'*v)
-    model.ext[:ineq] = @constraint(model, G*v .≤ h)
-    model.ext[:eq] = @constraint(model, A*v .== b)
-    model.ext[:lims] = @constraint(model, v_min .≤ v .≤ v_max)
+    try delete(model, model.ext[:ineq])  catch nothing; end
+    try delete(model, model.ext[:eq])  catch nothing; end
+    try delete(model, model.ext[:lims])  catch nothing; end
+
+
+    @objective(model, Min, 0.5*q̇'*P*q̇ + r'*q̇)
+    model.ext[:ineq] = @constraint(model, G*q̇ .≤ h)
+    model.ext[:eq] = @constraint(model, A*q̇ .== b)
+    model.ext[:lims] = @constraint(model, q̇_min .≤ q̇ .≤ q̇_max)
 
     optimize!(model)
     Δq = value.(x)
-    q̇ = Δq/Δt
-    return q̇
+    q̇sol = Δq/Δt
+    return q̇sol
 end
