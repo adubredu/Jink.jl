@@ -1,31 +1,27 @@
 #=
-    minimize 0.5*x'Px + q'x
-    subject to  Gx ≤ h
-                Ax = b 
-                xmin ≤ x ≤ xmax
+    minimize Σᵢ wᵢ⋅||Jᵢqᵢ̇ - Kᵢvᵢ||²
+    subject to  q̇̄ ≤ q̇ ≤ q̇⁺ 
 
 =#
 function initialize_solver(N; Δt=1e-3)
     model = JuMP.Model(OSQP.Optimizer) 
     @variable(model, q̇[1:N])
-    solver = JinkSolver(model, Δt, q̇)
+    solver = JinkSolver(model, Δt)
     return solver
 end
 
-function build_objective(tasks::AbstractArray{KinTask}, θ, Δt; K=0.5) 
-    N = length(θ)
-    P = zeros(N, N); r = zeros(1, N)
-    for task in tasks  
-        w = task.weight
+function build_objective(tasks::AbstractArray{KinTask}, θ, Δt; K=1.0) 
+    Js = []
+    vs = []
+    ws = [] 
+    for task in tasks 
+        push!(Js, task.task_map_jacobian(θ))
+        push!(ws, task.weight)
         p_current = task.task_map(θ)
-        J = task.task_map_jacobian(θ)  
         e = pose_error(task.target, p_current)
-        v = e./Δt 
-        v = hcat(v)  
-        r += -w*K*v'*J 
-        P += w*J'*J
+        push!(vs, K*e)
     end
-    return P, r
+    return Js, vs, ws
 end
 
 function build_equality_constraints(tasks::AbstractArray{KinTask}, θ, Δt )
@@ -40,8 +36,8 @@ end
 
 function compute_velocity_limits(θ, qlims, Δt::Float64; K=0.5)
     q_min, q_max = qlims
-    q̇_min = K*(q_min - θ)/Δt
-    q̇_max = K*(q_max - θ)/Δt
+    q̇_min = K*(q_min - θ)
+    q̇_max = K*(q_max - θ)
     return q̇_min, q̇_max
 end
 
@@ -50,19 +46,15 @@ function solve_ik(tasks::AbstractArray{KinTask}, θ, qlims,
     model = solver.model
     set_silent(model)
     Δt = solver.Δt
-    q̇ = solver.q̇
-    P, r = build_objective(tasks, θ, Δt)
-    # A, b = build_equality_constraints(tasks, θ, Δt)
-    # G, h = build_inequality_constraints(tasks, θ, Δt)
-    q̇_min, q̇_max = compute_velocity_limits(θ, qlims, Δt)
-    # @show q̇_min, q̇_max
-    # try delete(model, model.ext[:ineq])  catch nothing; end
-    # try delete(model, model.ext[:eq])  catch nothing; end
+    q̇ = solver.model.obj_dict[:q̇]
+    Js, vs, ws = build_objective(tasks, θ, Δt) 
+    q̇_min, q̇_max = compute_velocity_limits(θ, qlims, Δt) 
+
     try delete(model, model.ext[:lims])  catch nothing; end 
 
-    @objective(model, Min, 0.5*(q̇'*P*q̇) + r⋅q̇)
-    # model.ext[:ineq] = @constraint(model, G*q̇ .≤ h)
-    # model.ext[:eq] = @constraint(model, A*q̇ .== b)
+    @objective(model, Min, 
+            sum([w*(J*q̇ - v)'*(J*q̇ - v) for (J, v, w) in zip(Js, vs, ws)]))
+
     model.ext[:lims] = @constraint(model, q̇_min .≤ q̇ .≤ q̇_max)
 
     optimize!(model)
