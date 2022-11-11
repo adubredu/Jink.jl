@@ -7,15 +7,15 @@ mutable struct SE3
     end
 end
 
-mutable struct Task 
+mutable struct KinTask 
     name::Union{Nothing, Symbol}
-    target::Union{Nothing, SE3}
+    target::Union{Nothing, SE3, Vector}
     task_map::Union{Nothing, Function}
     task_map_jacobian::Union{Nothing, Function}
-    weight::Union{Nothing, AbstractArray}
+    weight::Union{Nothing, AbstractArray, Float64}
     selection_matrix::Union{Nothing, Matrix} 
 
-    function Task()
+    function KinTask()
         new(nothing, nothing, nothing, 
             nothing, nothing, nothing)
     end
@@ -24,4 +24,5 @@ end
 mutable struct JinkSolver
     model::Model
     Δt::Float64
+    q̇::Vector{VariableRef}
 end

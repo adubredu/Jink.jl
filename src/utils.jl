@@ -1,3 +1,4 @@
-function pose_error(target_pose::SE3, current_pose::SE3)
-
+function pose_error(target_pose::Vector, current_pose::Vector)
+    res = target_pose - current_pose
+    return collect(res)
 end
