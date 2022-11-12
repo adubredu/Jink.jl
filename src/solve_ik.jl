@@ -15,10 +15,11 @@ function build_objective(tasks::AbstractArray{KinTask}, θ, Δt; K=1.0)
     vs = []
     ws = [] 
     for task in tasks 
-        push!(Js, task.task_map_jacobian(θ))
+        S = task.selection_matrix
+        push!(Js, task.task_map_jacobian(θ)*S)
         push!(ws, task.weight)
         p_current = task.task_map(θ)
-        e = pose_error(task.target, p_current)
+        e = pose_error(task.target, vec(p_current))
         push!(vs, K*e)
     end
     return Js, vs, ws
