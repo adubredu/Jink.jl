@@ -14,6 +14,6 @@ left_foot_jacobian = Jp_left_foot
 right_foot_jacobian = Jp_right_foot
 left_wrist_jacobian = Jp_left_wrist
 right_wrist_jacobian = Jp_right_wrist
-com_position = centerOfMass
+
 
 end
