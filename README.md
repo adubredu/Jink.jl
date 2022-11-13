@@ -18,3 +18,6 @@ Julia package for differential multi-task inverse kinematics
 
 ## Usage
 See the [examples](examples) folder for usage examples. 
+
+## Acknowledgement
+This package was inspired by [Stephane Caron](https://github.com/stephane-caron)'s [pink](https://github.com/tasts-robots/pink) python package
